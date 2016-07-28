@@ -13,8 +13,78 @@ var port = parseInt(process.env.OPENSHIFT_NODEJS_PORT) || parseInt(process.env.P
 var redis = require('redis');
 var client = redis.createClient();
 
-client.on('connect', function() {
-    console.log('redis connected');
+client.on('connect', function() {console.log('redis connected');});
+client.on("error", function (err) {console.error("Error " + err);});
+
+var knex = require('knex')({
+    client: 'mysql',
+    connection: {
+        host: 'localhost',
+        user: 'root',
+        password: 'qwerty',
+        database: 'test1',
+        debug: false,
+        typeCast: function (field, next) {
+            if (field.type == "BIT" && field.length == 1) {
+                var bit = field.string();
+                var b = (bit === null) ? null : bit.charCodeAt(0);
+                return !!b;
+            }
+            return next();
+        }
+    }
+});
+knex('teams')
+    .select('*')
+    .catch(function (error) {
+        console.error(error)
+    })
+    .then(function (rows) {
+        console.log(rows);
+    });
+var stringsForMySQL = { '542': '[[["1","1:1","1.73"],["2","1:3","3.63"]]]',
+    '644': '[[["2","2:2","3.76"],["1","2:3","4.35"]]]' };
+
+function getStringNames(vilkas, callback) {
+    var bookmakers = [], markets = [], selections = [];
+    _.each(vilkas, function(event_vilkas, event_id){
+        vilkas[event_id] = JSON.parse(event_vilkas)
+        _.each(vilkas[event_id], function(vilka, vilkaKey){
+            _.each(vilka, function(item, itemKey){
+                bookmakers.push(item[0]); markets.push(item[1].split(":")[0]); selections.push(item[1].split(":")[1])
+            })
+        });
+    });
+    knex('bookmakers').select('*')
+        .whereIn('bookmaker_id', bookmakers)
+        .catch(function (error) { console.error(error) })
+        .then(function (rows) {
+            bookmakers = _.groupBy(rows, function(row){return row.bookmaker_id});
+            knex('markets').select('*')
+                .whereIn('market_id', markets)
+                .catch(function (error) { console.error(error) })
+                .then(function (rows) {
+                    markets = _.groupBy(rows, function(row){return row.market_id});
+                    knex('selections').select('*')
+                        .whereIn('selection_id', selections)
+                        .catch(function (error) { console.error(error) })
+                        .then(function (rows) {
+                            selections = _.groupBy(rows, function(row){return row.selection_id});
+                            _.each(vilkas, function(event_vilkas, event_id){
+                                _.each(event_vilkas, function(vilka, vilkaKey){
+                                    _.each(vilka, function(item, itemKey) {
+                                        vilkas["" + event_id][vilkaKey][itemKey] = [bookmakers["" + item[0]][0].name, markets["" + item[1].split(":")[0]][0].name + ":" + selections["" + item[1].split(":")[1]][0].name, item[2]];
+                                    })
+                                });
+                            });
+                            callback(vilkas);
+                        });
+                });
+        });
+    console.log(bookmakers, markets, selections);
+}
+getStringNames(stringsForMySQL, function (vilkas) {
+    console.log(vilkas['542'])
 });
 
 function storeEvent(event_id, param, object, callback) {
@@ -151,6 +221,7 @@ function calculateVilkas(event_id, eventSelections) {
     // ================================================
 }
 // TODO ====== make real VILKA calculating ========
+
 var i = 0;
 function getVilkas(event_ids) {
     var all_vilkas = {};
@@ -249,8 +320,6 @@ function storeDifference(difference) {
     })
 }
 
-
-
 function generateCollectedData(number) {
     var newDifference = [];
     _.times(number, function(n){
@@ -273,27 +342,39 @@ function generateCollectedData(number) {
 //
 
 client.keys("*", function (err, keys) {
-    keys.forEach(function (key, pos) {
-        client.del(key, function(err, o) {
-            if (err) console.error(key);
-            else if(pos == keys.length - 1) {
+    if(err) console.error(err);
+    else {
+        if(keys.length == 0) {
+            generateCollectedData(50000);
+            setInterval(function(){
+                generateCollectedData(500);
+                getVilkas();
+            }, 1000);
+        }
+        else {
+            keys.forEach(function (key, pos) {
+                client.del(key, function(err, o) {
+                    if (err) console.error(key);
+                    else if(pos == keys.length - 1) {
+                        console.log("starting data generation");
+                        //================================= little-tests ================================
+                        generateCollectedData(100);
+                        setTimeout(function(){
+                            getVilkas();
+                        }, 1000);
+                        //================================= little-tests ================================
 
-                //================================= little-tests ================================
-                // generateCollectedData(100);
-                // setTimeout(function(){
-                //     getVilkas();
-                // }, 1000);
-                //================================= little-tests ================================
+                        // generateCollectedData(50000);
+                        // setInterval(function(){
+                        //     generateCollectedData(500);
+                        //     getVilkas();
+                        // }, 1000);
 
-                generateCollectedData(50000);
-                setInterval(function(){
-                    generateCollectedData(500);
-                    getVilkas();
-                }, 1000);
-
-            }
-        });
-    });
+                    }
+                });
+            });
+        }
+    }
 });
 
 
