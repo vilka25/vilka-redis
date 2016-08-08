@@ -1,0 +1,20 @@
+<div class="main-list sports-list">
+    <div class="sport-item" ng-repeat="sport in sports">
+        <span class="sport-title">{{sport.name}}</span>
+
+    </div>
+</div>
+<div class="main-list competitions-list">
+    <div class="competitions-item" ng-repeat="competition in sport.competitions">
+        <span class="competition-title">
+            {{competition.name}}
+        </span>
+        <div class="events-list">
+            <div class="events-item" ng-repeat="competition in sport.competitions">
+                <span class="competition-title">
+                    {{competition.name}}
+                </span>
+            </div>
+        </div>
+    </div>
+</div>

@@ -21,27 +21,59 @@ var knex = require('knex')({
     }
 });
 
-knex.raw("CALL getEvents(" + 1 + "," + 1 + ")")
-    .catch(function (error) {console.error(error)})
-    .then(function (rows) {
-        console.log(rows[0][0])
-    });
 module.exports = {
-    
-    getEvents : function(params, callback) {
-        knex("CALL getEvents(" + params.sport_id + "," + params.competition_id + ")")
+
+    getSports : function(callback) {
+        knex.raw("SELECT * FROM sports")
             .catch(function (error) {console.error(error)})
             .then(function (rows) {
-                if(rows[0] && rows[0][0])  callback(rows[0][0]);
+                if(rows[0] && rows[0][0]) {
+                    var sports = rows[0];
+                    knex.raw("SELECT * FROM competitions")
+                        .catch(function (error) {console.error(error)})
+                        .then(function (rows) {
+                            if(rows[0] && rows[0][0]) {
+                                var competitions = _.groupBy(rows[0], 'sport_id');
+                                _.each(sports, function(sport, keyS){
+                                    competitions["" + sport.sport_id] = _.sortBy(competitions["" + sport.sport_id], 'country');
+                                    sports[keyS].competitions = _.groupBy(competitions["" + sport.sport_id], 'country');
+                                });
+                                sports = _.filter(sports, function(sport) {return !_.isEmpty(sport.competitions);});
+                                callback(sports);
+                            }
+                            else callback({error: true});
+                        })
+                }
+                else callback({error: true});
+            });
+    },
+
+    getEvents : function(params, callback) {
+        knex.raw("CALL getEvents(" + params.sport_id + "," + params.competition_id + ")")
+            .catch(function (error) {console.error(error)})
+            .then(function (rows) {
+                if(rows && rows[0] && rows[0][0]) {
+                    var events = rows[0][0];
+                    var eIDs = _.pluck(events, 'event_id');
+                    redisOp.getVilkas(eIDs, function(all_vilkas){
+                        _.each(events, function(event, eKey){
+                            events[eKey].vilkas = all_vilkas["" + event.event_id] ? JSON.parse(all_vilkas["" + event.event_id]) : '';
+                        });
+                        callback(events);
+                    });
+
+                }
                 else callback({error: true});
             })
     },
 
     getVilkas : function(params, callback) {
-
+        redisOp.getVilkas(params.ids, function(all_vilkas){
+            callback(all_vilkas);
+        });
     },
 
-    getStringNames : function(vilkas, callback) {
+    getVilkaNames : function(vilkas, callback) {
         var bookmakers = [], markets = [], selections = [];
         _.each(vilkas, function(event_vilkas, event_id){
             vilkas[event_id] = JSON.parse(event_vilkas);

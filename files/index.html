@@ -1,20 +1,25 @@
 <!DOCTYPE html>
-<html lang="en" ng-app="TwitchPostApp" ng-controller="mainController">
+<html ng-app="vilkaApp" ng-controller="mainController">
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="content-type" content="text/html">
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
 
-    <title>Vilka</title>
+    <title>Vilka Beta</title>
+
+    <link rel="icon" href="/img/favicon.ico" type="image/x-icon">
 
     <script src="/js/lib/angular.min.js"></script>
 
 </head>
 
 <body>
-    <div>
 
+    <div class="main-wrapper">
+        <header></header>
+        <ng-view></ng-view>
     </div>
+
     <script src="/js/lib/angular-animate.min.js"></script>
     <script src="/js/lib/angular-route.min.js"></script>
     <script src="/js/lib/angular-sanitize.min.js"></script>

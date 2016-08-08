@@ -74,12 +74,12 @@ function storeDifference(difference) {
                                 redisRequests.storeEvent(item.event_id, 'pricelist', prices_list.toString(), function() {
                                     if(dif_key == difference.length - 1) {
                                         sortEvents();
+                                        if(dif_key == 49999) console.log("Ending data generation");
                                     }
                                 })
                             });
                         }
                     });
-
                 }
             });
         }
@@ -97,6 +97,7 @@ function storeDifference(difference) {
                                 redisRequests.storeEvent(item.event_id, 'pricelist', prices_list.toString(), function() {
                                     if(dif_key == difference.length - 1) {
                                         sortEvents();
+                                        if(dif_key == 49999) console.log("Ending data generation");
                                     }
                                 })
                             });
@@ -114,30 +115,63 @@ function generateCollectedData(number) {
     _.times(number, function(n){
         var selection = _.sample(["1", "2", "3"]);
         var rate = (Number(selection) * ( 1 + _.random(1, 99)/100)).toFixed(2);
-        var eventRange = [_.random(1, 1000),_.random(1, 1000)];
+        var eventRange = [1,2];//[_.random(1, 1000),_.random(1, 1000)];
         newDifference.push({
             event_id : _.random(_.min(eventRange), _.max(eventRange)),
             price_id : _.sample(["total", "doublechance", "matchresult"]) + ":" + selection,
             bookmaker_id : _.sample(["toto", "vivaro", "eurofootball", "bet365","toto2", "vivaro2", "eurofootball2", "bet3652"]),
             rate : rate //_.random(1, 8) + "." + _.random(1, 99)
-        })
+        });
     });
     storeDifference(newDifference);
 }
 
 module.exports = {
 
-    getVilkas : function (event_ids) {
+    init : function(num) {
+        var _this = this;
+        console.log(num);
+        if(!num) num = 50000;
+        client.keys("*", function (err, keys) {
+            if(err) console.error(err);
+            else {
+                if(keys.length == 0) {
+                    console.log("starting data generation");
+                    generateCollectedData(num);
+                    setInterval(function(){
+                        generateCollectedData(500);
+                    }, 1000);
+                }
+                else {
+                    keys.forEach(function (key, pos) {
+                        client.del(key, function(err, o) {
+                            if (err) console.error(key);
+                            else if(pos == keys.length - 1) {
+                                console.log("starting data generation");
+                                generateCollectedData(num);
+                                setInterval(function(){
+                                    generateCollectedData(500);
+                                }, 1000);
+                            }
+                        });
+                    });
+                }
+            }
+        });
+    },
+    
+    getVilkas : function (event_ids, callback) {
         var _this = this;
         var all_vilkas = {};
         if(event_ids) {
             _.each(event_ids, function(event_id, keyEv) {
                 redisRequests.getEvent(event_id, '', function(err, vilkas){
-                    if(!err && vilkas != null) all_vilkas[''+event_id] = vilkas;
+                    if(!err && vilkas != null) {
+                        all_vilkas[''+event_id] = vilkas;
+                        console.log(vilkas, typeof vilkas)
+                    }
                     if(keyEv == event_ids.length-1) {
-                        //console.log("all_vilkas : ", all_vilkas);
-                        i++; console.log(i);
-                        console.log(all_vilkas)
+                        callback(all_vilkas);
                     }
                 });
             });
@@ -150,49 +184,6 @@ module.exports = {
                 _this.getVilkas(event_ids);
             });
         }
-    },
-
-    init : function() {
-        var _this = this;
-        client.keys("*", function (err, keys) {
-            if(err) console.error(err);
-            else {
-                if(keys.length == 0) {
-                    generateCollectedData(100);
-                    setTimeout(function(){
-                        _this.getVilkas();
-                    }, 1000);
-                    // generateCollectedData(50000);
-                    // setInterval(function(){
-                    //     generateCollectedData(1000);
-                    //     _this.getVilkas();
-                    // }, 1000);
-                }
-                else {
-                    keys.forEach(function (key, pos) {
-                        client.del(key, function(err, o) {
-                            if (err) console.error(key);
-                            else if(pos == keys.length - 1) {
-                                console.log("starting data generation");
-                                //================================= little-tests ================================
-                                generateCollectedData(100);
-                                setTimeout(function(){
-                                    _this.getVilkas();
-                                }, 1000);
-                                //================================= little-tests ================================
-
-                                // generateCollectedData(50000);
-                                // setInterval(function(){
-                                //     generateCollectedData(1000);
-                                //     //_this.getVilkas();
-                                // }, 1000);
-
-                            }
-                        });
-                    });
-                }
-            }
-        });
     }
-
+    
 };
